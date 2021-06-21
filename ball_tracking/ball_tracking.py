@@ -5,6 +5,12 @@ import argparse
 import imutils
 import cv2
 
+class CustomFrame:
+	def __init__(self, frame, is_hit):
+		self.frame = frame
+		self.is_hit = is_hit 
+		self.show_anyway = False 
+
 # construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
 ap.add_argument("-v", "--video",
@@ -31,6 +37,8 @@ else:
 
 fgbg = cv2.bgsegm.createBackgroundSubtractorMOG()
 
+frame_state = list()
+
 # infinite loop
 while True:
 	# grab the current frame
@@ -46,8 +54,8 @@ while True:
 	# blurred = cv2.GaussianBlur(frame, (11, 11), 0)
 	hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-	cv2.imshow("hsv", hsv)
-	input()
+	# cv2.imshow("hsv", hsv)
+	# input()
 
 	# construct a mask for the color "green", then perform
 	# a series of dilations and erosions to remove any small
@@ -56,16 +64,16 @@ while True:
 	mask = cv2.inRange(hsv, greenLower, greenUpper)
 	mask = cv2.bitwise_and(mask, mask, mask=fgmask)
 
-	cv2.imshow("mask", mask)
-	input()
+	# cv2.imshow("mask", mask)
+	# input()
 
-	mask = cv2.dilate(mask, None, iterations=1)
-	cv2.imshow("dilate", mask)
-	input()
+	# mask = cv2.dilate(mask, None, iterations=1)
+	# cv2.imshow("dilate", mask)
+	# input()
 
-	mask = cv2.erode(mask, None, iterations=1)
-	cv2.imshow("erode", mask)
-	input()
+	# mask = cv2.erode(mask, None, iterations=1)
+	# cv2.imshow("erode", mask)
+	# input()
 
 	# find contours in the mask and initialize the current
 	# (x, y) center of the ball
@@ -73,7 +81,7 @@ while True:
 		cv2.CHAIN_APPROX_NONE)[-2]
 	center = None
 
-	print(len(cnts))
+	# print(len(cnts))
 
 	# only proceed if at least one contour was found
 	if len(cnts) > 0:
@@ -83,9 +91,9 @@ while True:
 		c = max(cnts, key=cv2.contourArea)
 		((x, y), radius) = cv2.minEnclosingCircle(c)
 		M = cv2.moments(c)
-		print(M)
+		# print(M)
 
-		desired_radius = .00000000000000000000002
+		desired_radius = .1
 
 		# break if moment is 0
 		if M["m00"] != 0:
@@ -99,10 +107,10 @@ while True:
 					(0, 255, 255), 2)
 				cv2.circle(frame, center, 5, (0, 0, 255), -1)
 		elif radius > desired_radius:
-			print(c)
+			# print(c)
 			center = (c[0][0][0], c[0][0][1])
-		else:
-			print(radius)
+		# else:
+			# print(radius)
 
 	# update the points queue
 	pts.appendleft(center)
@@ -120,13 +128,37 @@ while True:
 		cv2.line(frame, pts[i - 1], pts[i], (0, 0, 255), thickness)
 
 	# show the frame to our screen
-	cv2.imshow("Frame", frame)
+	# cv2.imshow("Frame", frame)
+	# print(frame)
 	# cv2.imshow("Frame", mask)
+
+	is_hit = center != None
+	frame_state.append(CustomFrame(frame.copy(), is_hit))
+
 	key = cv2.waitKey(1) & 0xFF
 
 	# if the 'q' key is pressed, stop the loop
 	if key == ord("q"):
 		break
+
+# TODO: can reduce time complexity if we care
+FRAME_BUFFER = 30 
+prev = None
+for i, state in enumerate(frame_state):
+	if state.is_hit and prev != None and prev.is_hit == True:
+		index = min(i + FRAME_BUFFER // 2, len(frame_state)-1)
+		count = 0 
+		while count != FRAME_BUFFER and index >= 0:
+			frame_state[index - 1].show_anyway = True 
+			index -= 1
+			count += 1
+	prev = state
+
+for state in frame_state:
+	if state.is_hit or state.show_anyway:
+		cv2.imshow("test", state.frame)
+		cv2.waitKey(100);
+
 
 # cleanup the camera and close any open windows
 camera.release()
